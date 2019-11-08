@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 
 	"github.com/gorilla/mux"
 )
@@ -16,6 +17,8 @@ type Email string
 type DLs map[Email][]Email
 
 var dls DLs = make(map[Email][]Email)
+
+var mtx sync.Mutex
 
 func index(emails []Email, email Email) int {
 	for i, e := range emails {
@@ -68,6 +71,8 @@ func removeDuplicates(emails []Email) []Email {
 }
 
 func DeleteDL(w http.ResponseWriter, r *http.Request) {
+	mtx.Lock()
+	defer mtx.Unlock()
 	email := Email(mux.Vars(r)["email"])
 	delete(dls, email)
 	for k, v := range dls {
@@ -79,11 +84,14 @@ func DeleteDL(w http.ResponseWriter, r *http.Request) {
 }
 
 func UpdateDLs(w http.ResponseWriter, r *http.Request) {
+	mtx.Lock()
+	defer mtx.Unlock()
 	newDLs, e := extractWorkshopFromPayload(r)
 	if e != nil {
 		respondWithError(w, http.StatusUnprocessableEntity, e.Error())
 		return
 	}
+
 	for k, v := range newDLs {
 		dls[k] = append(dls[k], v...)
 		dls[k] = removeDuplicates(dls[k])
@@ -92,6 +100,8 @@ func UpdateDLs(w http.ResponseWriter, r *http.Request) {
 }
 
 func GetDLs(w http.ResponseWriter, r *http.Request) {
+	mtx.Lock()
+	defer mtx.Unlock()
 	respondWithJSON(w, http.StatusOK, dls)
 }
 
@@ -104,6 +114,8 @@ func getMembers(emails []Email) []Email {
 }
 
 func GetMembers(w http.ResponseWriter, r *http.Request) {
+	mtx.Lock()
+	defer mtx.Unlock()
 	email := Email(mux.Vars(r)["email"])
 	a := []Email{email}
 	members := getMembers(a)
@@ -131,6 +143,8 @@ func getParents(email Email) []Email {
 }
 
 func GetParents(w http.ResponseWriter, r *http.Request) {
+	mtx.Lock()
+	defer mtx.Unlock()
 	email := Email(mux.Vars(r)["email"])
 	parents := getParents(email)
 	respondWithJSON(w, http.StatusOK, parents)
